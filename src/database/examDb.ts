@@ -1,114 +1,80 @@
 // examDb.ts
-import * as SQLite from "expo-sqlite";
+import * as SQLite from 'expo-sqlite';
 
-// Mở (hoặc tạo) database "exams.db"
-const db = SQLite.openDatabase("exams.db");
-
-// Kiểu dữ liệu 1 bài kiểm tra
+/** Kiểu dữ liệu 1 bài kiểm tra */
 export interface ExamItem {
   id: number;
   title: string;
   phieu: string;
   soCau: number;
-  date: string; // ví dụ: "28-Thg 2-2025"
+  date: string;
 }
 
-/** Tạo bảng "exams" nếu chưa tồn tại */
-export function createTable() {
-  db.transaction(
-    (tx) => {
-      tx.executeSql(
-        `CREATE TABLE IF NOT EXISTS exams (
-          id INTEGER PRIMARY KEY NOT NULL,
-          title TEXT,
-          phieu TEXT,
-          soCau INTEGER,
-          date TEXT
-        );`
+let db: SQLite.SQLiteDatabase | null = null;
+
+/** Mở (hoặc tạo) DB, tạo bảng nếu chưa có. Sử dụng API async. */
+export async function openDbAsync(): Promise<SQLite.SQLiteDatabase> {
+  if (!db) {
+    // Hàm mới openDatabaseAsync
+    db = await SQLite.openDatabaseAsync('exams.db');
+    // Tạo bảng
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS exams (
+        id INTEGER PRIMARY KEY NOT NULL,
+        title TEXT,
+        phieu TEXT,
+        soCau INTEGER,
+        date TEXT
       );
-    },
-    (err) => console.log("Lỗi tạo bảng:", err),
-    () => console.log("Tạo bảng 'exams' thành công hoặc đã tồn tại.")
+    `);
+  }
+  return db;
+}
+
+/** Lấy danh sách exam */
+export async function getAllExamsAsync(): Promise<ExamItem[]> {
+  const database = await openDbAsync();
+  // getAllAsync → trả về mảng
+  const rows = await database.getAllAsync<ExamItem>('SELECT * FROM exams ORDER BY id DESC');
+  return rows;
+}
+
+/** Thêm 1 exam */
+export async function addExamAsync(exam: ExamItem): Promise<void> {
+  const database = await openDbAsync();
+  // runAsync → INSERT
+  await database.runAsync(
+    'INSERT INTO exams (id, title, phieu, soCau, date) VALUES (?, ?, ?, ?, ?)',
+    exam.id,
+    exam.title,
+    exam.phieu,
+    exam.soCau,
+    exam.date
   );
 }
 
-/** Thêm 1 bài kiểm tra (INSERT) */
-export function addExamToDB(
-  id: number,
-  title: string,
-  phieu: string,
-  soCau: number,
-  date: string
-) {
-  return new Promise<void>((resolve, reject) => {
-    db.transaction((tx) => {
-      tx.executeSql(
-        "INSERT INTO exams (id, title, phieu, soCau, date) VALUES (?, ?, ?, ?, ?);",
-        [id, title, phieu, soCau, date],
-        () => resolve(),
-        (_, error) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
-}
-
-/** Lấy tất cả exam (SELECT) */
-export function getAllExamsFromDB(): Promise<ExamItem[]> {
-  return new Promise((resolve, reject) => {
-    db.transaction((tx) => {
-      tx.executeSql(
-        "SELECT * FROM exams;",
-        [],
-        (_, { rows }) => {
-          resolve(rows._array as ExamItem[]);
-        },
-        (_, error) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
-}
-
-/** Cập nhật bài kiểm tra (UPDATE) */
-export function updateExamInDB(
-  id: number,
+/** Cập nhật exam */
+export async function updateExamAsync(
+  examId: number,
   title: string,
   phieu: string,
   soCau: number
-) {
-  return new Promise<void>((resolve, reject) => {
-    db.transaction((tx) => {
-      tx.executeSql(
-        "UPDATE exams SET title = ?, phieu = ?, soCau = ? WHERE id = ?;",
-        [title, phieu, soCau, id],
-        () => resolve(),
-        (_, error) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+): Promise<void> {
+  const database = await openDbAsync();
+  await database.runAsync(
+    'UPDATE exams SET title = ?, phieu = ?, soCau = ? WHERE id = ?',
+    title,
+    phieu,
+    soCau,
+    examId
+  );
 }
 
-/** Xóa 1 bài kiểm tra (DELETE) */
-export function deleteExamInDB(id: number) {
-  return new Promise<void>((resolve, reject) => {
-    db.transaction((tx) => {
-      tx.executeSql(
-        "DELETE FROM exams WHERE id = ?;",
-        [id],
-        () => resolve(),
-        (_, error) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+/** Xoá exam */
+export async function deleteExamAsync(examId: number): Promise<void> {
+  const database = await openDbAsync();
+  await database.runAsync(
+    'DELETE FROM exams WHERE id = ?',
+    examId
+  );
 }
