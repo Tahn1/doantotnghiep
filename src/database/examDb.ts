@@ -7,17 +7,22 @@ export interface ExamItem {
   title: string;
   phieu: string;
   soCau: number;
-  date: string;
+  date: string; 
 }
 
+/** Biến toàn cục giữ database (để tái sử dụng) */
 let db: SQLite.SQLiteDatabase | null = null;
 
-/** Mở (hoặc tạo) DB, tạo bảng nếu chưa có. Sử dụng API async. */
+/**
+ * Mở (hoặc tạo) database, tạo bảng nếu chưa có.
+ * Sử dụng API async 
+ */
 export async function openDbAsync(): Promise<SQLite.SQLiteDatabase> {
   if (!db) {
-    // Hàm mới openDatabaseAsync
+    // Hàm mới: openDatabaseAsync
     db = await SQLite.openDatabaseAsync('exams.db');
-    // Tạo bảng
+
+    // Tạo bảng 'exams' nếu chưa có
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS exams (
         id INTEGER PRIMARY KEY NOT NULL,
@@ -31,18 +36,19 @@ export async function openDbAsync(): Promise<SQLite.SQLiteDatabase> {
   return db;
 }
 
-/** Lấy danh sách exam */
+/** Lấy toàn bộ bài kiểm tra (SELECT * FROM exams) */
 export async function getAllExamsAsync(): Promise<ExamItem[]> {
   const database = await openDbAsync();
-  // getAllAsync → trả về mảng
-  const rows = await database.getAllAsync<ExamItem>('SELECT * FROM exams ORDER BY id DESC');
+  // getAllAsync<T> => trả về mảng T
+  const rows = await database.getAllAsync<ExamItem>(
+    'SELECT * FROM exams ORDER BY id DESC'
+  );
   return rows;
 }
 
-/** Thêm 1 exam */
+/** Thêm 1 bài kiểm tra */
 export async function addExamAsync(exam: ExamItem): Promise<void> {
   const database = await openDbAsync();
-  // runAsync → INSERT
   await database.runAsync(
     'INSERT INTO exams (id, title, phieu, soCau, date) VALUES (?, ?, ?, ?, ?)',
     exam.id,
@@ -53,24 +59,24 @@ export async function addExamAsync(exam: ExamItem): Promise<void> {
   );
 }
 
-/** Cập nhật exam */
+/** Cập nhật bài kiểm tra */
 export async function updateExamAsync(
   examId: number,
-  title: string,
-  phieu: string,
-  soCau: number
+  newTitle: string,
+  newPhieu: string,
+  newSoCau: number
 ): Promise<void> {
   const database = await openDbAsync();
   await database.runAsync(
     'UPDATE exams SET title = ?, phieu = ?, soCau = ? WHERE id = ?',
-    title,
-    phieu,
-    soCau,
+    newTitle,
+    newPhieu,
+    newSoCau,
     examId
   );
 }
 
-/** Xoá exam */
+/** Xóa bài kiểm tra */
 export async function deleteExamAsync(examId: number): Promise<void> {
   const database = await openDbAsync();
   await database.runAsync(
