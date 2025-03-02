@@ -14,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
-// Import hàm async (giống code cũ)
+// Import các hàm async
 import {
   ExamItem,
   getAllExamsAsync,
@@ -23,10 +23,10 @@ import {
   deleteExamAsync,
 } from "../database/examDb";
 
-// Danh sách phiếu (giữ nguyên)
+// Danh sách phiếu
 const PHIEU_OPTIONS = ["Phiếu 20", "Phiếu 60", "Phiếu 120"];
 
-// Hàm trả về số câu tối đa (giữ nguyên)
+// Hàm trả về số câu tối đa dựa theo phiếu
 function getMaxSoCau(phieu: string): number {
   if (phieu === "Phiếu 120") return 120;
   if (phieu === "Phiếu 60") return 60;
@@ -34,6 +34,7 @@ function getMaxSoCau(phieu: string): number {
   return 120;
 }
 
+/** Chuyển "ngày" -> timestamp (ms) */
 function parseDateString(dateString: string): number {
   const [dayStr, rest] = dateString.split("-Thg ");
   if (!rest) return 0;
@@ -44,21 +45,21 @@ function parseDateString(dateString: string): number {
   return new Date(year, month - 1, day).getTime();
 }
 
-/** Lọc (searchText) + sắp xếp (sortOption) */
+/** Lọc + sắp xếp exams */
 function getFilteredAndSortedExams(
   exams: ExamItem[],
   searchText: string,
   sortOption: string
 ): ExamItem[] {
   let data = exams;
-  // 1. Tìm kiếm
+  // Lọc theo tên
   const keyword = searchText.trim().toLowerCase();
   if (keyword) {
     data = data.filter((exam) =>
       exam.title.toLowerCase().includes(keyword)
     );
   }
-  // 2. Sắp xếp
+  // Sắp xếp
   switch (sortOption) {
     case "dateAsc":
       data = [...data].sort(
@@ -90,25 +91,14 @@ function getFilteredAndSortedExams(
 export default function KiemTraScreen() {
   const navigation = useNavigation();
 
-  // Danh sách các bài kiểm tra
+  // Danh sách bài kiểm tra
   const [exams, setExams] = useState<ExamItem[]>([]);
 
-  // Tìm kiếm
-  const [searchText, setSearchText] = useState("");
-  // Sắp xếp: 'none' | 'dateAsc' | 'dateDesc' | 'titleAsc' | 'titleDesc'
-  const [sortOption, setSortOption] = useState("none");
-  // Modal sắp xếp
-  const [sortModalVisible, setSortModalVisible] = useState(false);
-
-  // Modal Tạo/Chỉnh sửa
+  // Tạo / Chỉnh sửa
   const [modalVisible, setModalVisible] = useState(false);
-
-  // Form nhập
   const [title, setTitle] = useState("");
   const [phieu, setPhieu] = useState("Phiếu 20");
   const [soCau, setSoCau] = useState("20");
-
-  // Chế độ Tạo (false) hay Chỉnh sửa (true)
   const [isEditing, setIsEditing] = useState(false);
   const [editingExamId, setEditingExamId] = useState<number | null>(null);
 
@@ -119,7 +109,14 @@ export default function KiemTraScreen() {
   const [optionModalVisible, setOptionModalVisible] = useState(false);
   const [selectedExam, setSelectedExam] = useState<ExamItem | null>(null);
 
-  // Khi load màn hình, gọi DB async để lấy danh sách
+  // Tìm kiếm
+  const [searchMode, setSearchMode] = useState(false);  // true = hiện TextInput
+  const [searchText, setSearchText] = useState("");
+
+  // Sắp xếp
+  const [sortOption, setSortOption] = useState("none");
+  const [sortModalVisible, setSortModalVisible] = useState(false);
+
   useEffect(() => {
     loadExams();
   }, []);
@@ -133,7 +130,7 @@ export default function KiemTraScreen() {
     }
   }
 
-  // Tạo danh sách hiển thị sau search + sort
+  // Mảng hiển thị sau search + sort
   const displayExams = getFilteredAndSortedExams(exams, searchText, sortOption);
 
   // Mở Drawer
@@ -141,26 +138,25 @@ export default function KiemTraScreen() {
     navigation.openDrawer();
   };
 
-  // Toggle modal sort
-  const openSortModal = () => {
-    setSortModalVisible(true);
+  // Bật chế độ search
+  const onSearchPress = () => {
+    setSearchMode(true);
+  };
+  // Tắt search (icon close)
+  const onCloseSearch = () => {
+    setSearchMode(false);
+    setSearchText("");
   };
 
-  // Demo searchExams => giờ ta dùng searchText thay
-  const searchExams = () => {
-    Alert.alert("Search", "Hãy nhập từ khoá ở thanh trên cùng!");
-  };
-
-  // SortExams => mở modal
+  // Mở modal sort
   const sortExams = () => {
-    openSortModal();
+    setSortModalVisible(true);
   };
 
   // Mở modal Tạo bài
   const onOpenCreateModal = () => {
     setIsEditing(false);
     setEditingExamId(null);
-    // Reset form
     setTitle("");
     setPhieu("Phiếu 20");
     setSoCau("20");
@@ -172,7 +168,6 @@ export default function KiemTraScreen() {
     setModalVisible(false);
     setIsEditing(false);
     setEditingExamId(null);
-    // Reset form
     setTitle("");
     setPhieu("Phiếu 20");
     setSoCau("20");
@@ -180,40 +175,107 @@ export default function KiemTraScreen() {
 
   // Tạo bài kiểm tra
   async function onCreateExam() {
-    // ... (như code cũ)
+    if (!title.trim()) {
+      Alert.alert("Lỗi", "Bạn chưa nhập Tên bài!");
+      return;
+    }
+    const numSoCau = parseInt(soCau, 10);
+    if (!numSoCau) {
+      Alert.alert("Lỗi", "Bạn chưa nhập Số câu!");
+      return;
+    }
+    const maxCau = getMaxSoCau(phieu);
+    if (numSoCau < 1 || numSoCau > maxCau) {
+      Alert.alert("Lỗi", `Số câu phải từ 1 đến ${maxCau} (vì bạn chọn ${phieu})!`);
+      return;
+    }
+    const now = new Date();
+    const dateString = `${now.getDate()}-Thg ${now.getMonth() + 1}-${now.getFullYear()}`;
+
+    const newExam: ExamItem = {
+      id: Date.now(),
+      title: title.trim(),
+      phieu,
+      soCau: numSoCau,
+      date: dateString,
+    };
+
+    try {
+      await addExamAsync(newExam);
+      onCloseModal();
+      loadExams();
+    } catch (error) {
+      console.log("Lỗi addExamAsync:", error);
+    }
   }
 
   // Mở modal Chỉnh sửa
   const onEditExam = (exam: ExamItem) => {
-    // ... (như code cũ)
+    setIsEditing(true);
+    setEditingExamId(exam.id);
+    setTitle(exam.title);
+    setPhieu(exam.phieu);
+    setSoCau(String(exam.soCau));
+    setModalVisible(true);
   };
 
   // Lưu bài kiểm tra sau khi chỉnh sửa
   async function onUpdateExam() {
-    // ... (như code cũ)
+    if (!editingExamId) return;
+    if (!title.trim()) {
+      Alert.alert("Lỗi", "Bạn chưa nhập Tên bài!");
+      return;
+    }
+    const numSoCau = parseInt(soCau, 10);
+    if (!numSoCau) {
+      Alert.alert("Lỗi", "Bạn chưa nhập Số câu!");
+      return;
+    }
+    const maxCau = getMaxSoCau(phieu);
+    if (numSoCau < 1 || numSoCau > maxCau) {
+      Alert.alert("Lỗi", `Số câu phải từ 1 đến ${maxCau} (vì bạn chọn ${phieu})!`);
+      return;
+    }
+
+    try {
+      await updateExamAsync(editingExamId, title.trim(), phieu, numSoCau);
+      onCloseModal();
+      loadExams();
+    } catch (error) {
+      console.log("Lỗi updateExamAsync:", error);
+    }
   }
 
   // Xoá bài
   async function onDeleteExam(examId: number) {
-    // ... (như code cũ)
+    try {
+      await deleteExamAsync(examId);
+      loadExams();
+    } catch (error) {
+      console.log("Lỗi deleteExamAsync:", error);
+    }
   }
 
   // Chọn phiếu
   const onChoosePhieu = (value: string) => {
-    // ... (như code cũ)
+    setPhieu(value);
+    const max = getMaxSoCau(value);
+    setSoCau(String(max));
+    setChoosePhieuModalVisible(false);
   };
 
   // Mở modal tuỳ chọn (long press)
   const onLongPressExam = (exam: ExamItem) => {
-    // ... (như code cũ)
+    setSelectedExam(exam);
+    setOptionModalVisible(true);
   };
   const onCloseOptionModal = () => {
-    // ... (như code cũ)
+    setSelectedExam(null);
+    setOptionModalVisible(false);
   };
 
   // Render 1 item
   const renderExamItem = ({ item }: { item: ExamItem }) => (
-    // ... (như code cũ)
     <TouchableOpacity
       style={styles.examItem}
       onPress={() => {
@@ -249,24 +311,34 @@ export default function KiemTraScreen() {
 
           <Text style={styles.headerTitle}>Kiểm Tra</Text>
 
-          {/* Ô tìm kiếm + Nút filter */}
+          {/* Nếu searchMode = false => hiển thị icon search; nếu true => hiển thị TextInput + icon close */}
           <View style={styles.rightHeader}>
-            {/* Ô nhập searchText */}
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Tìm theo tên..."
-              placeholderTextColor="#ccc"
-              value={searchText}
-              onChangeText={setSearchText}
-            />
-            {/* Nút mở modal sắp xếp */}
-            <TouchableOpacity onPress={sortExams} style={{ marginLeft: 8 }}>
+            {searchMode ? (
+              <>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Tìm theo tên..."
+                  placeholderTextColor="#ccc"
+                  value={searchText}
+                  onChangeText={setSearchText}
+                />
+                <TouchableOpacity onPress={() => { setSearchMode(false); setSearchText(""); }} style={{ marginLeft: 8 }}>
+                  <Ionicons name="close" size={24} color="#fff" />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={() => setSearchMode(true)} style={{ marginRight: 15 }}>
+                <Ionicons name="search" size={24} color="#fff" />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity onPress={() => setSortModalVisible(true)}>
               <Ionicons name="filter" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Danh sách (đã lọc + sắp xếp) */}
+        {/* Danh sách bài kiểm tra (đã search + sort) */}
         <FlatList
           data={displayExams}
           keyExtractor={(item) => item.id.toString()}
@@ -279,34 +351,160 @@ export default function KiemTraScreen() {
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
 
-        {/* MODAL TẠO / CHỈNH SỬA (giống code cũ) */}
+        {/* MODAL TẠO / CHỈNH SỬA */}
         <Modal
           visible={modalVisible}
           transparent
           animationType="fade"
           onRequestClose={onCloseModal}
         >
-          {/* ... */}
+          <View style={styles.modalBackground}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>
+                {isEditing ? "Chỉnh sửa bài" : "Tạo bài mới"}
+              </Text>
+
+              {/* TÊN BÀI */}
+              <View style={styles.row}>
+                <Text style={styles.label}>TÊN BÀI</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="VD: TNMaker"
+                  value={title}
+                  onChangeText={setTitle}
+                />
+              </View>
+
+              {/* PHIẾU CHẤM */}
+              <View style={styles.row}>
+                <Text style={styles.label}>PHIẾU CHẤM</Text>
+                <TouchableOpacity
+                  style={[styles.input, { justifyContent: "center" }]}
+                  onPress={() => setChoosePhieuModalVisible(true)}
+                >
+                  <Text style={{ color: "#000" }}>{phieu}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* SỐ CÂU */}
+              <View style={styles.row}>
+                <Text style={styles.label}>SỐ CÂU</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="1-120"
+                  keyboardType="numeric"
+                  value={soCau}
+                  onChangeText={(text) => {
+                    if (text === "") {
+                      setSoCau("");
+                      return;
+                    }
+                    const num = parseInt(text, 10);
+                    const max = getMaxSoCau(phieu);
+                    if (!isNaN(num) && num >= 1 && num <= max) {
+                      setSoCau(String(num));
+                    }
+                  }}
+                />
+              </View>
+
+              {/* Nút HỦY / TẠO or LƯU */}
+              <View style={styles.btnRow}>
+                <TouchableOpacity
+                  style={[styles.btn, { backgroundColor: "#ccc" }]}
+                  onPress={onCloseModal}
+                >
+                  <Text style={styles.btnText}>HỦY</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, { backgroundColor: "orange" }]}
+                  onPress={() => {
+                    if (isEditing) {
+                      onUpdateExam();
+                    } else {
+                      onCreateExam();
+                    }
+                  }}
+                >
+                  <Text style={[styles.btnText, { color: "#fff" }]}>
+                    {isEditing ? "LƯU" : "TẠO"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </Modal>
 
-        {/* MODAL CHỌN PHIẾU (giống code cũ) */}
+        {/* MODAL CHỌN PHIẾU */}
         <Modal
           visible={choosePhieuModalVisible}
           transparent
           animationType="fade"
           onRequestClose={() => setChoosePhieuModalVisible(false)}
         >
-          {/* ... */}
+          <View style={styles.modalBackground}>
+            <View style={[styles.modalContainer, { width: "80%", maxHeight: "70%" }]}>
+              <Text style={styles.modalTitle}>Chọn Phiếu</Text>
+              <FlatList
+                data={PHIEU_OPTIONS}
+                keyExtractor={(item) => item}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.listItem}
+                    onPress={() => onChoosePhieu(item)}
+                  >
+                    <Text>{item}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </View>
         </Modal>
 
-        {/* MODAL TÙY CHỌN (long press) (giống code cũ) */}
+        {/* MODAL TÙY CHỌN (long press) */}
         <Modal
           visible={optionModalVisible}
           transparent
           animationType="slide"
           onRequestClose={onCloseOptionModal}
         >
-          {/* ... */}
+          <View style={styles.modalBackgroundOption}>
+            <View style={styles.optionContainer}>
+              {/* Chỉnh sửa */}
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={() => {
+                  if (selectedExam) {
+                    onEditExam(selectedExam);
+                  }
+                  onCloseOptionModal();
+                }}
+              >
+                <Text style={styles.optionText}>Chỉnh sửa</Text>
+              </TouchableOpacity>
+
+              {/* Xóa bài */}
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={() => {
+                  if (selectedExam) {
+                    onDeleteExam(selectedExam.id);
+                  }
+                  onCloseOptionModal();
+                }}
+              >
+                <Text style={[styles.optionText, { color: "red" }]}>Xóa bài</Text>
+              </TouchableOpacity>
+
+              {/* Hủy */}
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={onCloseOptionModal}
+              >
+                <Text style={styles.optionText}>Hủy</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </Modal>
 
         {/* MODAL SẮP XẾP */}
@@ -473,20 +671,62 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "orange",
   },
-  listItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#ccc",
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  label: {
+    width: 100,
+    fontWeight: "500",
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    paddingHorizontal: 8,
+    height: 40,
+    borderRadius: 4,
+  },
+  btnRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 12,
   },
   btn: {
-    backgroundColor: "#ccc",
+    minWidth: 60,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 4,
+    marginLeft: 10,
+    alignItems: "center",
   },
   btnText: {
     fontSize: 16,
     fontWeight: "500",
   },
-  // ...
+  listItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#ccc",
+  },
+  modalBackgroundOption: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "flex-end",
+  },
+  optionContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    paddingVertical: 8,
+  },
+  optionItem: {
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  optionText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
 });
