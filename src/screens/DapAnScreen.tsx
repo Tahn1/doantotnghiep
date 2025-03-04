@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   StatusBar,
   FlatList,
-  Alert,
 } from "react-native";
 import {
   useNavigation,
@@ -17,10 +16,9 @@ import {
 } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-// Gọi hàm loadMaDe, removeAnswersOfCodeAsync
-import { loadMaDe, removeAnswersOfCodeAsync } from "../database/examDb";
+// Gọi hàm loadMaDe
+import { loadMaDe } from "../database/examDb";
 
-// Kiểu item
 type MaDeItem = {
   examId: string;
   code: string;
@@ -31,11 +29,13 @@ export default function DapAnScreen() {
   const navigation = useNavigation();
   const route = useRoute();
 
-  const { examId = "1", title, phieu, soCau } = route.params || {};
+  // Giả sử ta nhận soCau từ params (đã được tính sẵn theo phiếu)
+  // hoặc ta nhận "phieu" và chuyển sang soCau (nếu "Phiếu 20" => soCau=20, ...)
+  const { examId = "1", soCau = 20 } = route.params || {};
 
   const [maDeList, setMaDeList] = useState<MaDeItem[]>([]);
 
-  // focus => load
+  // focus => load DB
   useFocusEffect(
     useCallback(() => {
       loadMaDe(examId).then((list) => {
@@ -45,66 +45,40 @@ export default function DapAnScreen() {
     }, [examId])
   );
 
-  // Back
+  // Nút back
   const goBack = () => {
     navigation.goBack();
   };
 
-  // Icon placeholders
+  // Demo icon
   const onCameraPress = () => {};
   const onScanPress = () => {};
   const onMorePress = () => {};
 
-  // Bấm plus => tạo mã đề
+  // Bấm plus => "Tạo mới" => mode="create"
   const onAddPress = () => {
     navigation.navigate("MaDeAnswersScreen", {
       examId,
+      soCau,
       mode: "create",
     });
   };
 
-  // Bấm 1 item => edit
+  // Bấm item => "Chỉnh sửa" => mode="edit"
   const onPressMaDeItem = (item: MaDeItem) => {
     navigation.navigate("MaDeAnswersScreen", {
       examId,
+      soCau,
       mode: "edit",
       oldCode: item.code,
       oldAnswers: item.answers,
     });
   };
 
-  // **Nhấn giữ** => xóa mã đề
-  const onLongPressMaDeItem = (item: MaDeItem) => {
-    Alert.alert("Xác nhận", `Bạn muốn xóa mã đề "${item.code}"?`, [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Xóa",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // Xóa đáp án mã đề trong DB
-            await removeAnswersOfCodeAsync(parseInt(examId, 10), item.code);
-
-            // Cách 1: gọi loadMaDe() để cập nhật
-            const list = await loadMaDe(examId);
-            setMaDeList(list);
-
-            // Hoặc cách 2: filter state:
-            // setMaDeList((prev) => prev.filter((m) => m.code !== item.code));
-          } catch (err) {
-            console.log("Error removeAnswersOfCode:", err);
-          }
-        },
-      },
-    ]);
-  };
-
-  // Render 1 item
   const renderMaDeItem = ({ item }: { item: MaDeItem }) => (
     <TouchableOpacity
       style={styles.card}
       onPress={() => onPressMaDeItem(item)}
-      onLongPress={() => onLongPressMaDeItem(item)}
     >
       <Text style={styles.cardLabel}>Mã đề</Text>
       <Text style={styles.cardValue}>{item.code}</Text>
@@ -145,16 +119,14 @@ export default function DapAnScreen() {
           </View>
         </View>
 
-        {/* Danh sách */}
+        {/* Danh sách mã đề */}
         <View style={{ flex: 1, padding: 16 }}>
           <FlatList
             data={maDeList}
             keyExtractor={(item) => item.code}
             renderItem={renderMaDeItem}
             ListEmptyComponent={
-              <Text
-                style={{ textAlign: "center", color: "#999", marginTop: 20 }}
-              >
+              <Text style={{ textAlign: "center", color: "#999", marginTop: 20 }}>
                 Chưa có mã đề
               </Text>
             }
@@ -165,7 +137,7 @@ export default function DapAnScreen() {
   );
 }
 
-// =========== Styles ===========
+// ========== Styles ==========
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   header: {

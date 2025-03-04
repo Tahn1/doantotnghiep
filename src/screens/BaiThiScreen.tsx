@@ -18,12 +18,7 @@ const MENU_ITEMS = [
   { id: "2", label: "Chấm bài", screen: "ChamBai", icon: "camera" },
   { id: "3", label: "Xem lại", screen: "XemLai", icon: "chatbox-ellipses" },
   { id: "4", label: "Thống kê", screen: "ThongKe", icon: "bar-chart" },
-  {
-    id: "5",
-    label: "Thông tin",
-    screen: "ThongTin",
-    icon: "information-circle",
-  },
+  { id: "5", label: "Thông tin", screen: "ThongTin", icon: "information-circle",},
 ];
 
 export default function BaiThiScreen() {
@@ -51,6 +46,7 @@ export default function BaiThiScreen() {
   // Khi bấm 1 mục
   const onPressItem = (item: any) => {
     // Chuyển sang màn hình tương ứng (DapAn, ChamBai, ...)
+    // Không gán cứng soBaiCham, soDapAn, etc.
     navigation.navigate(item.screen, {
       examId,
       title,

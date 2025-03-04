@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
+// Import DB hàm
 import {
   getAnswersByExamAndCodeAsync,
   removeAnswersOfCodeAsync,
@@ -20,17 +21,19 @@ import {
 
 type TabType = "MA_DE" | "DAP_AN";
 
-const ROWS = Array.from({ length: 10 }, (_, i) => i);
 const CHOICES = ["A", "B", "C", "D"];
+const circleSize = 50;
 
 export default function MaDeAnswersScreen() {
   const navigation = useNavigation();
   const route = useRoute();
 
+  // Nhận params
   const {
     examId = "1",
-    mode = "create", // "create" or "edit"
-    oldCode, // mã đề cũ nếu edit
+    soCau = 20,
+    mode = "create",   // "create" or "edit"
+    oldCode,
     oldAnswers,
   } = route.params || {};
 
@@ -58,26 +61,32 @@ export default function MaDeAnswersScreen() {
     navigation.goBack();
   };
 
-  // Lưu
+  // Nút Save
   const onSave = async () => {
     const exId = parseInt(examId, 10);
     const newCode = (digit1 || "0") + (digit2 || "0") + (digit3 || "0");
 
     try {
       if (mode === "create") {
-        // Kiểm tra trùng
+        // Kiểm tra mã đề trùng
         const exist = await getAnswersByExamAndCodeAsync(exId, newCode);
         if (exist.length > 0) {
           Alert.alert("Trùng mã đề", `Mã đề "${newCode}" đã tồn tại!`);
           return;
         }
-        // Lưu
-        // for each cauSo in answers => addAnswerAsync
-        for (const cauSoStr of Object.keys(answers)) {
-          const cauSo = parseInt(cauSoStr, 10);
-          const dapAn = answers[cauSo];
-          await addAnswerAsync(exId, newCode, cauSo, dapAn);
+
+        // Nếu answers rỗng => thêm 1 dòng "giả" (cauSo=0, dapAn="")
+        if (Object.keys(answers).length === 0) {
+          await addAnswerAsync(exId, newCode, 0, "");
+        } else {
+          // Ngược lại, user có chọn 1..n đáp án
+          for (const cauSoStr of Object.keys(answers)) {
+            const cauSo = parseInt(cauSoStr, 10);
+            const dapAn = answers[cauSo];
+            await addAnswerAsync(exId, newCode, cauSo, dapAn);
+          }
         }
+
       } else {
         // edit
         if (oldCode && oldCode !== newCode) {
@@ -90,14 +99,20 @@ export default function MaDeAnswersScreen() {
           // Xóa oldCode
           await removeAnswersOfCodeAsync(exId, oldCode);
         } else {
-          // oldCode==newCode => ghi đè
+          // oldCode == newCode => xóa cũ => ghi đè
           await removeAnswersOfCodeAsync(exId, newCode);
         }
-        // Lưu newCode
-        for (const cauSoStr of Object.keys(answers)) {
-          const cauSo = parseInt(cauSoStr, 10);
-          const dapAn = answers[cauSo];
-          await addAnswerAsync(exId, newCode, cauSo, dapAn);
+
+        // Nếu answers rỗng => thêm 1 dòng "giả"
+        if (Object.keys(answers).length === 0) {
+          await addAnswerAsync(exId, newCode, 0, "");
+        } else {
+          // Lưu các đáp án
+          for (const cauSoStr of Object.keys(answers)) {
+            const cauSo = parseInt(cauSoStr, 10);
+            const dapAn = answers[cauSo];
+            await addAnswerAsync(exId, newCode, cauSo, dapAn);
+          }
         }
       }
 
@@ -108,33 +123,31 @@ export default function MaDeAnswersScreen() {
     }
   };
 
-  // Tab
+  // Chọn tab
   const onSelectTab = (tab: TabType) => setActiveTab(tab);
 
-  // Bấm circle cột 0..3
-  const onPressMaDeCircle = (rowIndex: number, colIndex: number) => {
-    if (colIndex === 0) return;
-    const label = String(rowIndex);
+  // Bấm circle cột 0..3 (Tab MÃ ĐỀ)
+  const onPressMaDeCircle = (digit: number, colIndex: number) => {
+    if (colIndex === 0) return; // cột 0 => disable
+    const label = String(digit);
     if (colIndex === 1) setDigit1(label);
     if (colIndex === 2) setDigit2(label);
     if (colIndex === 3) setDigit3(label);
   };
 
+  // Chọn đáp án (Tab ĐÁP ÁN)
   const onChooseAnswer = (cauSo: number, choice: string) => {
-    setAnswers({
-      ...answers,
-      [cauSo]: choice,
-    });
+    setAnswers({ ...answers, [cauSo]: choice });
   };
 
-  // UI
+  // ====== UI ======
   const renderHeader = () => (
     <View style={styles.header}>
       <TouchableOpacity onPress={onBack} style={styles.iconButton}>
         <Ionicons name="arrow-back" size={24} color="#fff" />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>
-        {mode === "edit" ? "Sửa mã đề" : "Mã đề mới"}
+        {mode === "edit" ? "Sửa Mã Đề" : "Mã Đề Mới"}
       </Text>
       <TouchableOpacity onPress={onSave} style={styles.iconButton}>
         <Ionicons name="save" size={24} color="#fff" />
@@ -148,12 +161,7 @@ export default function MaDeAnswersScreen() {
         style={[styles.tabItem, activeTab === "MA_DE" && styles.tabItemActive]}
         onPress={() => onSelectTab("MA_DE")}
       >
-        <Text
-          style={[
-            styles.tabText,
-            activeTab === "MA_DE" && styles.tabTextActive,
-          ]}
-        >
+        <Text style={[styles.tabText, activeTab === "MA_DE" && styles.tabTextActive]}>
           MÃ ĐỀ
         </Text>
       </TouchableOpacity>
@@ -161,57 +169,59 @@ export default function MaDeAnswersScreen() {
         style={[styles.tabItem, activeTab === "DAP_AN" && styles.tabItemActive]}
         onPress={() => onSelectTab("DAP_AN")}
       >
-        <Text
-          style={[
-            styles.tabText,
-            activeTab === "DAP_AN" && styles.tabTextActive,
-          ]}
-        >
+        <Text style={[styles.tabText, activeTab === "DAP_AN" && styles.tabTextActive]}>
           ĐÁP ÁN
         </Text>
       </TouchableOpacity>
     </View>
   );
 
+  // Tab “MÃ ĐỀ”
   const renderMaDeTab = () => {
-    const digits = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    // Tạo mảng digits [0..9]
+    const digits = Array.from({ length: 10 }, (_, i) => i);
+
     return (
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        {digits.map((rowIndex) => (
-          <View key={rowIndex} style={styles.maDeRow}>
-            {[0, 1, 2, 3].map((colIndex) => {
+      <ScrollView contentContainerStyle={styles.maDeTabContainer}>
+        <Text style={styles.subTitle}>
+          Chọn 3 chữ số (cột 1..3) để tạo mã đề.
+        </Text>
+        {digits.map((digit) => (
+          <View key={digit} style={styles.maDeRow}>
+            {[0,1,2,3].map((colIndex) => {
               if (colIndex === 0) {
                 // cột 0 => disable
                 return (
-                  <TouchableOpacity
+                  <View
                     key={colIndex}
-                    style={[styles.maDeCircle, { backgroundColor: "#b2b2b2" }]}
-                    activeOpacity={1}
+                    style={[styles.circleDigit, styles.disabledCircle]}
                   >
-                    <Text style={styles.maDeCircleText}>{rowIndex}</Text>
-                  </TouchableOpacity>
+                    <Text style={styles.circleDigitText}>{digit}</Text>
+                  </View>
                 );
               } else {
                 let selected = false;
-                const label = String(rowIndex);
+                const label = String(digit);
                 if (colIndex === 1 && digit1 === label) selected = true;
                 if (colIndex === 2 && digit2 === label) selected = true;
                 if (colIndex === 3 && digit3 === label) selected = true;
-                let bg = "#9aa9e1";
-                if (selected) bg = "orange";
+
                 return (
                   <TouchableOpacity
                     key={colIndex}
-                    style={[styles.maDeCircle, { backgroundColor: bg }]}
-                    onPress={() => onPressMaDeCircle(rowIndex, colIndex)}
+                    style={[
+                      styles.circleDigit,
+                      selected ? styles.selectedCircle : styles.normalCircle,
+                    ]}
+                    onPress={() => onPressMaDeCircle(digit, colIndex)}
                   >
                     <Text
                       style={[
-                        styles.maDeCircleText,
-                        selected && { color: "#fff" },
+                        styles.circleDigitText,
+                        selected && styles.selectedCircleText,
                       ]}
                     >
-                      {rowIndex}
+                      {digit}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -223,11 +233,16 @@ export default function MaDeAnswersScreen() {
     );
   };
 
-  const DEMO_SOCAU = 13;
+  // Tab “ĐÁP ÁN”
   const renderDapAnTab = () => {
-    const data = Array.from({ length: DEMO_SOCAU }, (_, i) => i + 1);
+    // Tạo mảng [1..soCau]
+    const data = Array.from({ length: soCau }, (_, i) => i + 1);
+
     return (
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={styles.dapAnTabContainer}>
+        <Text style={styles.subTitle}>
+          Chọn đáp án (A/B/C/D) cho mỗi câu (1..{soCau}).
+        </Text>
         {data.map((cauSo) => {
           const userChoice = answers[cauSo];
           return (
@@ -243,14 +258,14 @@ export default function MaDeAnswersScreen() {
                       key={ch}
                       style={[
                         styles.choiceCircle,
-                        isSelected && { backgroundColor: "orange" },
+                        isSelected && styles.selectedChoice,
                       ]}
                       onPress={() => onChooseAnswer(cauSo, ch)}
                     >
                       <Text
                         style={[
                           styles.choiceText,
-                          isSelected && { color: "#fff" },
+                          isSelected && styles.selectedChoiceText,
                         ]}
                       >
                         {ch}
@@ -259,7 +274,6 @@ export default function MaDeAnswersScreen() {
                   );
                 })}
               </View>
-              <View style={styles.emptyColumn} />
             </View>
           );
         })}
@@ -272,10 +286,8 @@ export default function MaDeAnswersScreen() {
       <SafeAreaView style={{ flex: 0, backgroundColor: "orange" }} />
       <SafeAreaView style={styles.container}>
         <StatusBar backgroundColor="orange" barStyle="light-content" />
-
         {renderHeader()}
         {renderTabs()}
-
         <View style={{ flex: 1 }}>
           {activeTab === "MA_DE" ? renderMaDeTab() : renderDapAnTab()}
         </View>
@@ -284,9 +296,12 @@ export default function MaDeAnswersScreen() {
   );
 }
 
-const circleSize = 48;
+/* ========== STYLES ========== */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
   header: {
     backgroundColor: "orange",
     height: 56,
@@ -295,8 +310,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     justifyContent: "space-between",
   },
-  iconButton: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#fff" },
+  iconButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+  },
 
   tabContainer: {
     flexDirection: "row",
@@ -309,40 +330,72 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   tabItemActive: {
-    borderBottomWidth: 2,
+    borderBottomWidth: 3,
     borderBottomColor: "orange",
   },
-  tabText: { fontSize: 16, color: "#666" },
-  tabTextActive: { color: "orange", fontWeight: "600" },
-
-  maDeRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 12,
+  tabText: {
+    fontSize: 16,
+    color: "#666",
   },
-  maDeCircle: {
-    width: circleSize,
-    height: circleSize,
-    borderRadius: circleSize / 2,
-    backgroundColor: "#9aa9e1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  maDeCircleText: {
-    fontSize: 18,
-    color: "#fff",
+  tabTextActive: {
+    color: "orange",
     fontWeight: "600",
   },
 
+  maDeTabContainer: {
+    padding: 16,
+    alignItems: "center",
+  },
+  subTitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  maDeRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 10,
+    width: "80%",
+  },
+  circleDigit: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabledCircle: {
+    backgroundColor: "#b2b2b2",
+  },
+  normalCircle: {
+    backgroundColor: "#9aa9e1",
+  },
+  selectedCircle: {
+    backgroundColor: "orange",
+  },
+  circleDigitText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  selectedCircleText: {
+    color: "#fff",
+  },
+
+  dapAnTabContainer: {
+    padding: 16,
+  },
   answerRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
   },
   circleSTT: {
-    width: circleSize,
-    height: circleSize,
-    borderRadius: circleSize / 2,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: "#e6e6e6",
     alignItems: "center",
     justifyContent: "center",
@@ -357,12 +410,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flex: 1,
     justifyContent: "space-around",
-    marginRight: 12,
   },
   choiceCircle: {
-    width: circleSize,
-    height: circleSize,
-    borderRadius: circleSize / 2,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: "#ccc",
     alignItems: "center",
     justifyContent: "center",
@@ -372,7 +424,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
-  emptyColumn: {
-    width: circleSize,
+  selectedChoice: {
+    backgroundColor: "orange",
+  },
+  selectedChoiceText: {
+    color: "#fff",
   },
 });

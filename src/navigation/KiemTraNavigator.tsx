@@ -11,6 +11,7 @@ import XemLaiScreen from "../screens/XemLaiScreen";
 
 // Import màn hình mới
 import MaDeAnswersScreen from "../screens/MaDeAnswersScreen"; // <-- Tên file bạn tạo
+import ThongTinScreen from "../screens/ThongTinScreen";
 
 const Stack = createStackNavigator();
 
@@ -26,6 +27,8 @@ export default function KiemTraNavigator() {
       <Stack.Screen name="DapAn" component={DapAnScreen} />
       <Stack.Screen name="ChamBai" component={ChamBaiScreen} />
       <Stack.Screen name="XemLai" component={XemLaiScreen} />
+      <Stack.Screen name="ThongTin" component={ThongTinScreen} />
+
 
       {/* Khai báo màn hình mới ở đây */}
       <Stack.Screen name="MaDeAnswersScreen" component={MaDeAnswersScreen} />
