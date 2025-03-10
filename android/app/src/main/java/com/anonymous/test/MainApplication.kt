@@ -20,6 +20,9 @@ import com.reactlibrary.RNOpenCvLibraryPackage
 
 
 class MainApplication : Application(), ReactApplication {
+  static {
+    System.loadLibrary("opencv_java4");
+}
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
         this,

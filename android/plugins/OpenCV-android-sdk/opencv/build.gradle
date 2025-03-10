@@ -1,95 +1,6 @@
-// This file is part of OpenCV project.
-// It is subject to the license terms in the LICENSE file found in the top-level directory
-// of this distribution and at http://opencv.org/license.html.
-
-//
-// Notes about integration OpenCV into existed Android Studio application project are below (application 'app' module should exist).
-//
-// This file is located in <OpenCV-android-sdk>/sdk directory (near 'etc', 'java', 'native' subdirectories)
-//
-// Add module into Android Studio application project:
-//
-// - Android Studio way:
-//   (will copy almost all OpenCV Android SDK into your project, ~200Mb)
-//
-//   Import module: Menu -> "File" -> "New" -> "Module" -> "Import Gradle project":
-//   Source directory: select this "sdk" directory
-//   Module name: ":opencv"
-//
-// - or attach library module from OpenCV Android SDK
-//   (without copying into application project directory, allow to share the same module between projects)
-//
-//   Edit "settings.gradle" and add these lines:
-//
-//   def opencvsdk='<path_to_opencv_android_sdk_rootdir>'
-//   // You can put declaration above into gradle.properties file instead (including file in HOME directory),
-//   // but without 'def' and apostrophe symbols ('): opencvsdk=<path_to_opencv_android_sdk_rootdir>
-//   include ':opencv'
-//   project(':opencv').projectDir = new File(opencvsdk + '/sdk')
-//
-//
-//
-// Add dependency into application module:
-//
-// - Android Studio way:
-//   "Open Module Settings" (F4) -> "Dependencies" tab
-//
-// - or add "project(':opencv')" dependency into app/build.gradle:
-//
-//   dependencies {
-//       implementation fileTree(dir: 'libs', include: ['*.jar'])
-//       ...
-//       implementation project(':opencv')
-//   }
-//
-//
-//
-// Load OpenCV native library before using:
-//
-// - avoid using of "OpenCVLoader.initAsync()" approach - it is deprecated
-//   It may load library with different version (from OpenCV Android Manager, which is installed separatelly on device)
-//
-// - use "System.loadLibrary("opencv_java4")" or "OpenCVLoader.initDebug()"
-//   TODO: Add accurate API to load OpenCV native library
-//
-//
-//
-// Native C++ support (necessary to use OpenCV in native code of application only):
-//
-// - Use find_package() in app/CMakeLists.txt:
-//
-//   find_package(OpenCV 4.11 REQUIRED java)
-//   ...
-//   target_link_libraries(native-lib ${OpenCV_LIBRARIES})
-//
-// - Add "OpenCV_DIR" and enable C++ exceptions/RTTI support via app/build.gradle
-//   Documentation about CMake options: https://developer.android.com/ndk/guides/cmake.html
-//
-//   defaultConfig {
-//       ...
-//       externalNativeBuild {
-//           cmake {
-//               cppFlags "-std=c++11 -frtti -fexceptions"
-//               arguments "-DOpenCV_DIR=" + opencvsdk + "/sdk/native/jni" // , "-DANDROID_ARM_NEON=TRUE"
-//           }
-//       }
-//   }
-//
-// - (optional) Limit/filter ABIs to build ('android' scope of 'app/build.gradle'):
-//   Useful information: https://developer.android.com/studio/build/gradle-tips.html (Configure separate APKs per ABI)
-//
-//   splits {
-//       abi {
-//           enable true
-//           universalApk false
-//           reset()
-//           include 'armeabi-v7a' // , 'x86', 'x86_64', 'arm64-v8a'
-//       }
-//   }
-//
-
 apply plugin: 'com.android.library'
 apply plugin: 'maven-publish'
+
 try {
     apply plugin: 'kotlin-android'
     println "Configure OpenCV with Kotlin"
@@ -98,21 +9,40 @@ try {
 }
 
 def openCVersionName = "4.11.0"
-def openCVersionCode = ((4 * 100 + 11) * 100 + 0) * 10 + 0
+def openCVersionCode = 4110000
 
-println "OpenCV: " +openCVersionName + " " + project.buildscript.sourceFile
+println "OpenCV: " + openCVersionName + " " + project.buildscript.sourceFile
 
 android {
     namespace 'org.opencv'
     compileSdkVersion 34
 
+    // KHÔNG dùng flavorDimensions / productFlavors
+    // (Nếu app không còn flavor, ta cũng gỡ hẳn ở đây.)
+
+    buildTypes {
+        debug {
+            // Tránh Gradle strip *.so
+            packagingOptions {
+                doNotStrip '**/*.so'
+            }
+        }
+        release {
+            packagingOptions {
+                doNotStrip '**/*.so'
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 34
-
         versionCode openCVersionCode
         versionName openCVersionName
 
+        // Cấu hình build native OpenCV
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_STL=c++_shared"
@@ -120,30 +50,18 @@ android {
             }
         }
     }
-    
-    android {
-        buildFeatures {
-            buildConfig true
-        }
+     
+
+    // Cho phép buildConfig & prefabPublishing
+    buildFeatures {
+        buildConfig true
+        prefabPublishing true
     }
+
+    // Java 17 (tuỳ ý, bạn có thể chuyển sang 1.8)
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
-    }
-
-    buildTypes {
-        debug {
-            packagingOptions {
-                doNotStrip '**/*.so'  // controlled by OpenCV CMake scripts
-            }
-        }
-        release {
-            packagingOptions {
-                doNotStrip '**/*.so'  // controlled by OpenCV CMake scripts
-            }
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
-        }
     }
 
     sourceSets {
@@ -160,25 +78,24 @@ android {
             path (project.projectDir.toString() + '/libcxx_helper/CMakeLists.txt')
         }
     }
-    
-    buildFeatures {
-        prefabPublishing true
-        buildConfig true
-    }
 
+    // Nếu bạn muốn xuất prefab
     prefab {
         opencv_jni_shared {
             headers 'native/jni/include'
         }
     }
 
+    // Xuất .aar
     publishing {
+          multipleVariants {
+        allVariants()
+    }
         singleVariant('release') {
             withSourcesJar()
             withJavadocJar()
         }
     }
-
 }
 
 publishing {
@@ -189,8 +106,8 @@ publishing {
             version = '4.11.0'
 
             afterEvaluate {
-               from components.release
-           }
+                from components.release
+            }
         }
     }
     repositories {
@@ -199,7 +116,4 @@ publishing {
             url = "${project.buildDir}/repo"
         }
     }
-}
-
-dependencies {
 }
