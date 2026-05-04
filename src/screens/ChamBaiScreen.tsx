@@ -1,7 +1,7 @@
+//ChamBaiScreen.tsx expoapp
 import React, { useRef, useEffect, useState } from "react";
 import { CameraView, Camera, useCameraPermissions } from "expo-camera";
 import { View, Text, Button, StyleSheet, TouchableOpacity } from "react-native";
-
 export default function ChamDiemScreen() {
   const cameraRef = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
